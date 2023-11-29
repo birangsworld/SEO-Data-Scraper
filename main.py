@@ -4,15 +4,8 @@ from bs4 import BeautifulSoup
 
 
 def sheetToDataFrame(filePath):
-    try:
-        df = pd.read_csv(filePath)
-        return df
-    except FileNotFoundError:
-        print(f"File Not Found At: {filePath}")
-        return None
-    except Exception as e:
-        print(f"An Error Occured: {e}")
-        return None
+    inputCSV = pd.read_csv(filePath)
+    return inputCSV
 
 
 def requestPage(pageRoute):
@@ -34,15 +27,18 @@ def makeSoup(pageContent):
 
 
 def extractTitle(soup):
-    pageTitle = soup.title.string
+    pageTitle = str(soup.title.string)
+    print(pageTitle)
     return pageTitle
 
 
 def extractDescription(soup):
-    metaDescription = soup.find("meta", {"name": "description"})["content"]
-    return metaDescription
-
-
+    metaDescription = soup.find("meta", {"name": "description"})
+    if metaDescription:
+        return metaDescription["content"]
+    else:
+        return "None"
+    
 def extractHeadings(soup):
     headings = soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"])
 
@@ -51,6 +47,8 @@ def extractHeadings(soup):
     for heading in headings:
         headingContent = heading.string
         allHeadings.append(headingContent)
+
+    allHeadings = ', '.join(map(str, allHeadings))
 
     return allHeadings
 
@@ -64,6 +62,8 @@ def extractTextContent(soup):
         content = contentTag.string
         allContents.append(content)
 
+    allContents = ', '.join(map(str, allContents))
+
     return allContents
 
 
@@ -75,6 +75,8 @@ def extractImageAlts(soup):
     for image in allImages:
         altText = image["alt"]
         allImageAlts.append(altText)
+
+    allImageAlts = ', '.join(map(str, allImageAlts))
 
     return allImageAlts
 
@@ -94,11 +96,21 @@ def extractLinks(soup):
     return linkAnchors, linkDestinations
 
 
-def main():
-    # FilePath = input("Path to File: ")
-    # DataFrame = SheetToDataFrame(FilePath)
-    url = "https://ztcprep.com/ielts"
-    pageContent = requestPage(url)
+def mergeLinks(linkAnchors, linkDestinations):
+    anchorDestPairs = []
+    for i, anchor in enumerate(linkAnchors):
+        for j, destination in enumerate(linkDestinations):
+            if i == j:
+                anchorDestPair = f"{linkAnchors[i]}| {linkDestinations[j]}"
+                anchorDestPairs.append(anchorDestPair)
+
+    anchorDestPairs = ', '.join(map(str, anchorDestPairs))
+
+    return anchorDestPairs
+
+
+def scrapeWebPage(pageURL):
+    pageContent = requestPage(pageURL)
     soup = makeSoup(pageContent)
     title = extractTitle(soup)
     metaDescription = extractDescription(soup)
@@ -106,7 +118,35 @@ def main():
     contents = extractTextContent(soup)
     imageAlts = extractImageAlts(soup)
     anchorTexts, linkDestinations = extractLinks(soup)
-    print(linkDestinations)
+    linkPairs = mergeLinks(anchorTexts, linkDestinations)
 
+    pageData = [title, pageURL, metaDescription, headings, contents, imageAlts, linkPairs]
+
+    return pageData
+
+
+def exportFinalResults(pageDataFrame):
+    pageDataFrame.to_csv("output.csv", index= False)
+
+    return None
+
+
+
+def main():
+    finalExport = []
+    filePath = "./input.csv"    
+    dataFrame = sheetToDataFrame(filePath)
+    urls = dataFrame["URLs"]
+    urlsArray = urls.values.tolist()
+    for url in urlsArray:
+        tempData = scrapeWebPage(url)
+        export = f"'Title': {tempData[0]}, 'URL': {tempData[1]}, 'Meta_Description': {tempData[2]}, 'Headings': {tempData[3]}, 'Content': {tempData[4]}, 'imageAlts': {tempData[5]}, 'Links': {tempData[6]}"
+        finalExport.append(export)
+
+    with open("output.txt", "w") as file:
+        file.write(str(finalExport))
+    
+
+        
 
 main()
